@@ -1,49 +1,85 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import API from "../api/axios";
 
 function Vote() {
   const [candidates, setCandidates] = useState([]);
+  const [election, setElection] = useState(null);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ type: "", message: "" });
   const [votingFor, setVotingFor] = useState(null);
+  const [hasVoted, setHasVoted] = useState(false);
 
   useEffect(() => {
-    const fetchCandidates = async () => {
+    const fetchData = async () => {
       try {
-        const res = await API.get("candidates/");
-        setCandidates(res.data);
+        const electionRes = await API.get("election/");
+        setElection(electionRes.data);
+
+        const candidatesRes = await API.get("candidates/", {
+          params: { election_id: electionRes.data.id },
+        });
+        setCandidates(candidatesRes.data);
       } catch {
-        setFeedback({ type: "error", message: "Failed to load candidates." });
+        setFeedback({ type: "error", message: "Failed to load election data." });
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCandidates();
+    fetchData();
   }, []);
 
+  const electionState = useMemo(() => {
+    if (!election?.start_time || !election?.end_time) {
+      return { canVote: true, message: "" };
+    }
+
+    const now = new Date();
+    const start = new Date(election.start_time);
+    const end = new Date(election.end_time);
+
+    if (now < start) {
+      return { canVote: false, message: "Voting has not started yet." };
+    }
+
+    if (now >= end) {
+      return { canVote: false, message: "Voting has ended for this election." };
+    }
+
+    if (!election.is_active) {
+      return { canVote: false, message: "Voting is currently paused." };
+    }
+
+    return { canVote: true, message: "" };
+  }, [election]);
+
   const handleVote = async (id) => {
+    if (!electionState.canVote || hasVoted) {
+      return;
+    }
+
     setFeedback({ type: "", message: "" });
 
     try {
       setVotingFor(id);
       await API.post(`vote/${id}/`, {});
       setCandidates((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, vote_count: c.vote_count + 1 } : c))
+        prev.map((candidate) =>
+          candidate.id === id ? { ...candidate, vote_count: candidate.vote_count + 1 } : candidate
+        )
       );
+      setHasVoted(true);
       setFeedback({ type: "success", message: "Vote submitted successfully." });
     } catch (error) {
-      const message = error?.response?.data?.error || "You may have already voted.";
+      const message = error?.response?.data?.error || "Unable to submit vote.";
+      if (message.toLowerCase().includes("already voted")) {
+        setHasVoted(true);
+      }
       setFeedback({ type: "error", message });
     } finally {
       setVotingFor(null);
     }
   };
-
-  const now = new Date();
-  const hasElectionWindow = election?.start_time && election?.end_time;
-  const electionNotStarted = hasElectionWindow && now < new Date(election.start_time);
-  const electionEnded = hasElectionWindow && now >= new Date(election.end_time);
 
   return (
     <section className="container">
@@ -51,6 +87,15 @@ function Vote() {
         <h2>Cast Your Vote</h2>
         <p className="muted">Select one candidate carefully. Your vote is final.</p>
       </div>
+
+      {election?.title ? (
+        <div className="card">
+          <h3>{election.title}</h3>
+          {!electionState.canVote && electionState.message ? (
+            <p className="status error">{electionState.message}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       {feedback.message ? (
         <p className={`status ${feedback.type === "success" ? "success" : "error"}`}>
@@ -72,8 +117,11 @@ function Vote() {
             <h3>{candidate.name}</h3>
             <p>{candidate.description}</p>
             <p className="muted">Current votes: {candidate.vote_count}</p>
-            <button onClick={() => handleVote(candidate.id)} disabled={votingFor === candidate.id}>
-              {votingFor === candidate.id ? "Submitting..." : "Vote"}
+            <button
+              onClick={() => handleVote(candidate.id)}
+              disabled={votingFor === candidate.id || !electionState.canVote || hasVoted}
+            >
+              {votingFor === candidate.id ? "Submitting..." : hasVoted ? "Vote Submitted" : "Vote"}
             </button>
           </article>
         ))}
