@@ -23,7 +23,7 @@ function Login() {
       const res = await API.post("token/", { username, password });
 
       localStorage.setItem("token", res.data.access);
-      navigate("/vote");
+      navigate("/");
     } catch {
       setError("Invalid credentials. Please try again.");
     } finally {

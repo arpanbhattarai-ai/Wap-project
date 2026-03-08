@@ -14,22 +14,43 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
 
+function formatDistanceFromBaseline(endTime, serverNow, baselineClientTs) {
+  const end = new Date(endTime).getTime();
+  const serverStart = new Date(serverNow).getTime();
+  const elapsedClientMs = Date.now() - baselineClientTs;
+  const distance = end - (serverStart + elapsedClientMs);
+
+  if (Number.isNaN(distance) || distance <= 0) {
+    return "Election Ended";
+  }
+
+  const totalSeconds = Math.floor(distance / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${hours}h ${minutes}m ${seconds}s`;
+}
+
 function Results() {
   const [candidates, setCandidates] = useState([]);
   const [election, setElection] = useState(null);
   const [timeLeft, setTimeLeft] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [baselineClientTs, setBaselineClientTs] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [electionRes, candidatesRes] = await Promise.all([
-          API.get("election/"),
-          API.get("candidates/"),
-        ]);
+        const electionRes = await API.get("election/");
+        const candidatesRes = await API.get("candidates/", {
+          params: { election_id: electionRes.data.id },
+        });
+
         setElection(electionRes.data);
         setCandidates(candidatesRes.data);
+        setBaselineClientTs(Date.now());
       } catch {
         setError("Unable to load results right now.");
       } finally {
@@ -41,34 +62,19 @@ function Results() {
   }, []);
 
   useEffect(() => {
-    if (!election?.end_time) return;
+    if (!election?.end_time || !election?.server_time || baselineClientTs === null) {
+      return;
+    }
 
-    const interval = setInterval(() => {
-      const now = new Date().getTime();
-      const end = new Date(election.end_time).getTime();
-      const distance = end - now;
+    const updateTimer = () => {
+      setTimeLeft(formatDistanceFromBaseline(election.end_time, election.server_time, baselineClientTs));
+    };
 
-      if (distance <= 0) {
-        setTimeLeft("Election Ended");
-        clearInterval(interval);
-      } else {
-        const hours = Math.floor(distance / (1000 * 60 * 60));
-        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-        setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
-      }
-
-      if (now < end) {
-        setTimeLeft(`Time Remaining: ${formatDistance(election.end_time)}`);
-        return;
-      }
-
-      setTimeLeft("Election Ended");
-      clearInterval(interval);
-    }, 1000);
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [election]);
+  }, [election, baselineClientTs]);
 
   const winner = useMemo(() => {
     if (candidates.length === 0) return null;
@@ -93,35 +99,40 @@ function Results() {
     );
   }
 
-  if (election?.start_time && election?.end_time) {
-    const now = new Date();
-    const start = new Date(election.start_time);
-    const end = new Date(election.end_time);
-
-    if (now < start) {
-      return (
-        <section className="container">
-          <div className="card">
-            <h2>Election has not started yet</h2>
-          </div>
-        </section>
-      );
-    }
-
-    if (now >= start && now < end) {
-      return (
-        <section className="container">
-          <div className="card">
-            <h2>Election is ongoing</h2>
-            <p className="muted">Time Remaining: {timeLeft}</p>
-          </div>
-        </section>
-      );
-    }
+  if (election?.status === "upcoming") {
+    return (
+      <section className="container">
+        <div className="card">
+          <h2>Election has not started yet</h2>
+        </div>
+      </section>
+    );
   }
 
-  const labels = candidates.map((c) => c.name);
-  const votes = candidates.map((c) => c.vote_count);
+  if (election?.status === "ongoing") {
+    return (
+      <section className="container">
+        <div className="card">
+          <h2>Election is ongoing</h2>
+          <p className="muted">Time Remaining: {timeLeft}</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (election?.status === "paused") {
+    return (
+      <section className="container">
+        <div className="card">
+          <h2>Election is currently paused</h2>
+          <p className="muted">Results are unavailable while voting is paused.</p>
+        </div>
+      </section>
+    );
+  }
+
+  const labels = candidates.map((candidate) => candidate.name);
+  const votes = candidates.map((candidate) => candidate.vote_count);
 
   const data = {
     labels,
