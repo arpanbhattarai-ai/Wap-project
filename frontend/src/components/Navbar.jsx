@@ -31,6 +31,9 @@ function Navbar() {
           </>
         ) : (
           <>
+            <Link className={isActive("/") ? "active" : ""} to="/">
+              Home
+            </Link>
             <Link className={isActive("/vote") ? "active" : ""} to="/vote">
               Vote
             </Link>
