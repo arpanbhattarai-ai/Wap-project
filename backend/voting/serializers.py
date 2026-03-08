@@ -24,6 +24,13 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
         return user
 
+
+class ElectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Election
+        fields = '__all__'
+
+
 class CandidateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Candidate
