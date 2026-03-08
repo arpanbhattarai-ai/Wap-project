@@ -12,6 +12,8 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Vote
 from django.shortcuts import get_object_or_404
 
+from .models import Election
+from .serializers import ElectionSerializer
 
 @api_view(['GET'])
 def get_election(request):
