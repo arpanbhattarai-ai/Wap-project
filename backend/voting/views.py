@@ -10,71 +10,12 @@ from .serializers import CandidateSerializer, ElectionSerializer, RegisterSerial
 
 
 def _get_relevant_election():
-    """Pick the most relevant election for the current moment.
+    """Return the active election if one exists, otherwise the nearest by start time."""
+    active_election = Election.objects.filter(is_active=True).order_by('start_time').first()
+    if active_election:
+        return active_election
 
-    Priority:
-    1) Ongoing active election
-    2) Next upcoming active election
-    3) Most recently finished election
-    4) Any most recently created election fallback
-    """
-    now = timezone.now()
-
-    ongoing = Election.objects.filter(
-        is_active=True,
-        start_time__lte=now,
-        end_time__gt=now,
-    ).order_by('start_time').first()
-    if ongoing:
-        return ongoing
-
-    upcoming = Election.objects.filter(
-        is_active=True,
-        start_time__gt=now,
-    ).order_by('start_time').first()
-    if upcoming:
-        return upcoming
-
-    finished = Election.objects.filter(end_time__lte=now).order_by('-end_time', '-id').first()
-    if finished:
-        return finished
-
-    return Election.objects.order_by('-id').first()
-
-
-def _build_election_state(election):
-    now = timezone.now()
-
-    if not election.is_active:
-        return {
-            'status': 'paused',
-            'can_vote': False,
-            'status_message': 'Voting is currently paused.',
-            'server_time': now.isoformat(),
-        }
-
-    if now < election.start_time:
-        return {
-            'status': 'upcoming',
-            'can_vote': False,
-            'status_message': 'Voting has not started yet.',
-            'server_time': now.isoformat(),
-        }
-
-    if now >= election.end_time:
-        return {
-            'status': 'ended',
-            'can_vote': False,
-            'status_message': 'Voting has ended for this election.',
-            'server_time': now.isoformat(),
-        }
-
-    return {
-        'status': 'ongoing',
-        'can_vote': True,
-        'status_message': '',
-        'server_time': now.isoformat(),
-    }
+    return Election.objects.order_by('start_time').first()
 
 
 @api_view(['GET'])
@@ -130,9 +71,15 @@ def vote(request, candidate_id):
     if not election:
         return Response({"error": "This candidate is not assigned to an election."}, status=status.HTTP_400_BAD_REQUEST)
 
-    election_state = _build_election_state(election)
-    if not election_state['can_vote']:
-        return Response({"error": election_state['status_message']}, status=status.HTTP_400_BAD_REQUEST)
+    now = timezone.now()
+    if not election.is_active:
+        return Response({"error": "Voting is not active for this election."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if now < election.start_time:
+        return Response({"error": "Voting has not started yet."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if now >= election.end_time:
+        return Response({"error": "Voting for this election has ended."}, status=status.HTTP_400_BAD_REQUEST)
 
     candidate.vote_count += 1
     candidate.save(update_fields=['vote_count'])
