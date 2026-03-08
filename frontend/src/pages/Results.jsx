@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import API from "../api/axios";
 import { Bar, Pie } from "react-chartjs-2";
 import {
@@ -12,81 +12,130 @@ import {
   Legend,
 } from "chart.js";
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend
-);
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
+
+function formatDistance(targetDate) {
+  const now = new Date().getTime();
+  const target = new Date(targetDate).getTime();
+  const distance = target - now;
+
+  if (distance <= 0) {
+    return "0h 0m 0s";
+  }
+
+  const hours = Math.floor(distance / (1000 * 60 * 60));
+  const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+  return `${hours}h ${minutes}m ${seconds}s`;
+}
 
 function Results() {
   const [candidates, setCandidates] = useState([]);
   const [election, setElection] = useState(null);
   const [timeLeft, setTimeLeft] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // Fetch election + candidates
   useEffect(() => {
-    API.get("election/")
-      .then((res) => setElection(res.data))
-      .catch((err) => console.log(err));
+    const fetchData = async () => {
+      try {
+        const electionRes = await API.get("election/");
+        setElection(electionRes.data);
 
-    API.get("candidates/")
-      .then((res) => setCandidates(res.data))
-      .catch((err) => console.log(err));
+        const candidatesRes = await API.get("candidates/", {
+          params: { election_id: electionRes.data.id },
+        });
+        setCandidates(candidatesRes.data);
+      } catch (err) {
+        if (err?.response?.status === 404) {
+          setError("No election has been configured yet.");
+        } else {
+          setError("Unable to load results right now.");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  // Countdown timer
   useEffect(() => {
-    if (!election) return;
+    if (!election?.start_time || !election?.end_time) return;
 
     const interval = setInterval(() => {
-      const now = new Date().getTime();
-      const end = new Date(election.end_time).getTime();
-      const distance = end - now;
+      const now = new Date();
+      const start = new Date(election.start_time);
+      const end = new Date(election.end_time);
 
-      if (distance <= 0) {
-        setTimeLeft("Election Ended");
-        clearInterval(interval);
-      } else {
-        const hours = Math.floor(distance / (1000 * 60 * 60));
-        const minutes = Math.floor(
-          (distance % (1000 * 60 * 60)) / (1000 * 60)
-        );
-        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
-        setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
+      if (now < start) {
+        setTimeLeft(`Election starts in: ${formatDistance(election.start_time)}`);
+        return;
       }
+
+      if (now < end) {
+        setTimeLeft(`Time Remaining: ${formatDistance(election.end_time)}`);
+        return;
+      }
+
+      setTimeLeft("Election Ended");
+      clearInterval(interval);
     }, 1000);
 
     return () => clearInterval(interval);
   }, [election]);
 
-  // If election still ongoing → hide results
-  if (election) {
-  const now = new Date();
-  const start = new Date(election.start_time);
-  const end = new Date(election.end_time);
+  const winner = useMemo(() => {
+    if (candidates.length === 0) return null;
+    return candidates.reduce((prev, current) =>
+      prev.vote_count >= current.vote_count ? prev : current
+    );
+  }, [candidates]);
 
-  if (now < start) {
+  if (loading) {
     return (
-      <div className="container">
-        <h2>Election has not started yet</h2>
-      </div>
+      <section className="container">
+        <p className="muted">Loading results...</p>
+      </section>
     );
   }
 
-  if (now >= start && now < end) {
+  if (error) {
     return (
-      <div className="container">
-        <h2>Election is ongoing</h2>
-        <h3>Time Remaining: {timeLeft}</h3>
-      </div>
+      <section className="container">
+        <p className="status error">{error}</p>
+      </section>
     );
   }
-}
+
+  if (election?.start_time && election?.end_time) {
+    const now = new Date();
+    const start = new Date(election.start_time);
+    const end = new Date(election.end_time);
+
+    if (now < start) {
+      return (
+        <section className="container">
+          <div className="card">
+            <h2>Election has not started yet</h2>
+            <p className="muted">{timeLeft}</p>
+          </div>
+        </section>
+      );
+    }
+
+    if (now >= start && now < end) {
+      return (
+        <section className="container">
+          <div className="card">
+            <h2>Election is ongoing</h2>
+            <p className="muted">{timeLeft}</p>
+            <p className="muted">Results will be available after the timer ends.</p>
+          </div>
+        </section>
+      );
+    }
+  }
 
   const labels = candidates.map((c) => c.name);
   const votes = candidates.map((c) => c.vote_count);
@@ -97,40 +146,39 @@ function Results() {
       {
         label: "Votes",
         data: votes,
-        backgroundColor: [
-          "#4e73df",
-          "#1cc88a",
-          "#e74a3b",
-          "#f6c23e",
-          "#36b9cc",
-        ],
+        backgroundColor: ["#7c8eff", "#52d1a6", "#f78989", "#ffd166", "#69d2e7"],
       },
     ],
   };
 
-  const winner = candidates.reduce((prev, current) =>
-    prev.vote_count > current.vote_count ? prev : current
-  );
-
   return (
-    <div className="container">
-      <h2>Election Results Dashboard</h2>
-
-      <div className="card">
-        <h3>🏆 Winner: {winner.name}</h3>
-        <p>Total Votes: {winner.vote_count}</p>
+    <section className="container">
+      <div className="section-header">
+        <h2>Election Results Dashboard</h2>
+        <p className="muted">Final vote counts after election close.</p>
       </div>
 
-      <div className="card">
+      {winner ? (
+        <div className="card">
+          <h3>🏆 Winner: {winner.name}</h3>
+          <p className="muted">Total Votes: {winner.vote_count}</p>
+        </div>
+      ) : (
+        <div className="card">
+          <p>No votes have been cast yet.</p>
+        </div>
+      )}
+
+      <div className="card chart-card">
         <h3>Bar Chart</h3>
         <Bar data={data} />
       </div>
 
-      <div className="card">
+      <div className="card chart-card">
         <h3>Pie Chart</h3>
         <Pie data={data} />
       </div>
-    </div>
+    </section>
   );
 }
 

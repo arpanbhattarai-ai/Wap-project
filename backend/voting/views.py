@@ -1,23 +1,34 @@
-from rest_framework.decorators import permission_classes
-from django.shortcuts import render
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
-from .serializers import RegisterSerializer
-
-from .models import Candidate
-from .serializers import CandidateSerializer
-
-from rest_framework.permissions import IsAuthenticated
-from .models import Vote
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from .models import Candidate, Election, Vote
+from .serializers import CandidateSerializer, ElectionSerializer, RegisterSerializer
+
+
+def _get_relevant_election():
+    now = timezone.now()
+    active = Election.objects.filter(is_active=True)
+
+    current_or_upcoming = active.filter(end_time__gt=now).order_by('start_time').first()
+    if current_or_upcoming:
+        return current_or_upcoming
+
+    return active.order_by('-start_time').first()
 
 
 @api_view(['GET'])
 def get_election(request):
-    election = Election.objects.first()
+    election = _get_relevant_election()
+    if not election:
+        return Response({"detail": "No election configured."}, status=status.HTTP_404_NOT_FOUND)
+
     serializer = ElectionSerializer(election)
     return Response(serializer.data)
+
 
 @api_view(['POST'])
 def register_user(request):
@@ -29,9 +40,19 @@ def register_user(request):
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(['GET'])
 def get_candidates(request):
-    candidates = Candidate.objects.all()
+    election_id = request.query_params.get('election_id')
+
+    if election_id:
+        candidates = Candidate.objects.filter(election_id=election_id)
+    else:
+        election = _get_relevant_election()
+        if not election:
+            return Response([], status=status.HTTP_200_OK)
+        candidates = Candidate.objects.filter(election=election)
+
     serializer = CandidateSerializer(candidates, many=True)
     return Response(serializer.data)
 
@@ -41,18 +62,24 @@ def get_candidates(request):
 def vote(request, candidate_id):
     user = request.user
 
-    # Check if user already voted
     if Vote.objects.filter(user=user).exists():
-        return Response({"error": "You have already voted!"}, status=400)
+        return Response({"error": "You have already voted!"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Get candidate
     candidate = get_object_or_404(Candidate, id=candidate_id)
 
-    # Increase vote count
-    candidate.vote_count += 1
-    candidate.save()
+    election = candidate.election
+    if not election or not election.is_active:
+        return Response({"error": "This candidate is not in an active election."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Create vote record
+    now = timezone.now()
+    if now < election.start_time:
+        return Response({"error": "Election has not started yet."}, status=status.HTTP_400_BAD_REQUEST)
+    if now >= election.end_time:
+        return Response({"error": "Election has already ended."}, status=status.HTTP_400_BAD_REQUEST)
+
+    candidate.vote_count += 1
+    candidate.save(update_fields=['vote_count'])
+
     Vote.objects.create(user=user, candidate=candidate)
 
     return Response({"message": "Vote cast successfully!"})
