@@ -1,5 +1,4 @@
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -8,21 +7,12 @@ from rest_framework.response import Response
 from .models import Candidate, Election, Vote
 from .serializers import CandidateSerializer, ElectionSerializer, RegisterSerializer
 
-
-def _get_relevant_election():
-    now = timezone.now()
-    active = Election.objects.filter(is_active=True)
-
-    current_or_upcoming = active.filter(end_time__gt=now).order_by('start_time').first()
-    if current_or_upcoming:
-        return current_or_upcoming
-
-    return active.order_by('-start_time').first()
-
+from .models import Election
+from .serializers import ElectionSerializer
 
 @api_view(['GET'])
 def get_election(request):
-    election = _get_relevant_election()
+    election = Election.objects.first()
     if not election:
         return Response({"detail": "No election configured."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -66,16 +56,6 @@ def vote(request, candidate_id):
         return Response({"error": "You have already voted!"}, status=status.HTTP_400_BAD_REQUEST)
 
     candidate = get_object_or_404(Candidate, id=candidate_id)
-
-    election = candidate.election
-    if not election or not election.is_active:
-        return Response({"error": "This candidate is not in an active election."}, status=status.HTTP_400_BAD_REQUEST)
-
-    now = timezone.now()
-    if now < election.start_time:
-        return Response({"error": "Election has not started yet."}, status=status.HTTP_400_BAD_REQUEST)
-    if now >= election.end_time:
-        return Response({"error": "Election has already ended."}, status=status.HTTP_400_BAD_REQUEST)
 
     candidate.vote_count += 1
     candidate.save(update_fields=['vote_count'])

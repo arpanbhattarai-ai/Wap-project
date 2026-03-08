@@ -6,30 +6,20 @@ function Vote() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ type: "", message: "" });
   const [votingFor, setVotingFor] = useState(null);
-  const [election, setElection] = useState(null);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchCandidates = async () => {
       try {
-        const electionRes = await API.get("election/");
-        setElection(electionRes.data);
-
-        const candidatesRes = await API.get("candidates/", {
-          params: { election_id: electionRes.data.id },
-        });
-        setCandidates(candidatesRes.data);
-      } catch (err) {
-        if (err?.response?.status === 404) {
-          setFeedback({ type: "error", message: "No active election configured yet." });
-        } else {
-          setFeedback({ type: "error", message: "Failed to load candidates." });
-        }
+        const res = await API.get("candidates/");
+        setCandidates(res.data);
+      } catch {
+        setFeedback({ type: "error", message: "Failed to load candidates." });
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
+    fetchCandidates();
   }, []);
 
   const handleVote = async (id) => {
@@ -70,18 +60,6 @@ function Vote() {
 
       {loading ? <p className="muted">Loading candidates...</p> : null}
 
-      {!loading && electionNotStarted ? (
-        <div className="card">
-          <p>Election has not started yet. Voting will open at the configured start time.</p>
-        </div>
-      ) : null}
-
-      {!loading && electionEnded ? (
-        <div className="card">
-          <p>Election has ended. Voting is closed.</p>
-        </div>
-      ) : null}
-
       {!loading && candidates.length === 0 ? (
         <div className="card">
           <p>No candidates available right now.</p>
@@ -94,10 +72,7 @@ function Vote() {
             <h3>{candidate.name}</h3>
             <p>{candidate.description}</p>
             <p className="muted">Current votes: {candidate.vote_count}</p>
-            <button
-              onClick={() => handleVote(candidate.id)}
-              disabled={votingFor === candidate.id || electionNotStarted || electionEnded}
-            >
+            <button onClick={() => handleVote(candidate.id)} disabled={votingFor === candidate.id}>
               {votingFor === candidate.id ? "Submitting..." : "Vote"}
             </button>
           </article>
