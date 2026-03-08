@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import API from "../api/axios";
 
@@ -68,38 +68,77 @@ function Home() {
     return () => clearInterval(interval);
   }, [election, baselineClientTs]);
 
+  const statusLabel = useMemo(() => {
+    switch (election?.status) {
+      case "upcoming":
+        return "Upcoming";
+      case "ongoing":
+        return "Live now";
+      case "ended":
+        return "Ended";
+      case "paused":
+        return "Paused";
+      default:
+        return "Unknown";
+    }
+  }, [election?.status]);
+
+  const statusDescription = useMemo(() => {
+    switch (election?.status) {
+      case "upcoming":
+        return `Voting starts in ${counter}`;
+      case "ongoing":
+        return `Voting ends in ${counter}`;
+      case "ended":
+        return "Voting has ended. View the final results.";
+      case "paused":
+        return "Voting is temporarily paused.";
+      default:
+        return "Election state is unavailable.";
+    }
+  }, [election?.status, counter]);
+
   if (loading) return <section className="container"><p className="muted">Loading election overview...</p></section>;
   if (error) return <section className="container"><p className="status error">{error}</p></section>;
 
   return (
-    <section className="container">
-      <div className="section-header">
-        <h2>Election Homepage</h2>
-        <p className="muted">Current election status and quick actions.</p>
-      </div>
-
-      <div className="card">
-        <h3>{election?.title || "Election"}</h3>
-        {election?.status === "upcoming" ? <p className="muted">Starts in: {counter}</p> : null}
-        {election?.status === "ongoing" ? <p className="muted">Ends in: {counter}</p> : null}
-        {election?.status === "ended" ? <p className="muted">Election has ended.</p> : null}
-        {election?.status === "paused" ? <p className="muted">Election is paused.</p> : null}
-
-        <div className="home-actions">
-          <Link to="/vote">Go to Vote</Link>
-          <Link to="/results">View Results</Link>
+    <section className="container home-page">
+      <div className="hero card">
+        <div className="hero-content">
+          <p className="muted">Welcome to the voting portal</p>
+          <h2>{election?.title || "Election Dashboard"}</h2>
+          <p className="hero-description">{statusDescription}</p>
+          <span className={`status-pill status-${election?.status || "unknown"}`}>{statusLabel}</span>
+          <div className="home-actions">
+            <Link className="btn-link" to="/vote">Cast Vote</Link>
+            <Link className="btn-link btn-link-secondary" to="/results">See Results</Link>
+          </div>
+        </div>
+        <div className="hero-stats">
+          <div className="stat-box">
+            <span className="muted">Candidates</span>
+            <strong>{candidates.length}</strong>
+          </div>
+          <div className="stat-box">
+            <span className="muted">Election state</span>
+            <strong>{statusLabel}</strong>
+          </div>
         </div>
       </div>
 
       <div className="card">
-        <h3>Candidates ({candidates.length})</h3>
+        <div className="section-header">
+          <h3>Candidate spotlight</h3>
+          <p className="muted">Meet the participants in this election.</p>
+        </div>
         {candidates.length === 0 ? (
           <p className="muted">No candidates added yet.</p>
         ) : (
-          <ul className="candidate-list">
+          <ul className="candidate-list enhanced-list">
             {candidates.map((candidate) => (
               <li key={candidate.id}>
-                <strong>{candidate.name}</strong> — {candidate.description}
+                <strong>{candidate.name}</strong>
+                <p className="muted">{candidate.description}</p>
               </li>
             ))}
           </ul>
