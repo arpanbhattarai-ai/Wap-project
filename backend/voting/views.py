@@ -7,6 +7,8 @@ from rest_framework.response import Response
 from .models import Candidate, Election, Vote
 from .serializers import CandidateSerializer, ElectionSerializer, RegisterSerializer
 
+from .models import Election
+from .serializers import ElectionSerializer
 
 @api_view(['GET'])
 def get_election(request):
