@@ -1,6 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import API from "../api/axios";
 
+function formatDistanceFromBaseline(targetTime, serverNow, baselineClientTs) {
+  const target = new Date(targetTime).getTime();
+  const serverStart = new Date(serverNow).getTime();
+  const elapsedClientMs = Date.now() - baselineClientTs;
+  const distance = target - (serverStart + elapsedClientMs);
+
+  if (Number.isNaN(distance) || distance <= 0) {
+    return "0h 0m 0s";
+  }
+
+  const totalSeconds = Math.floor(distance / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${hours}h ${minutes}m ${seconds}s`;
+}
+
 function Vote() {
   const [candidates, setCandidates] = useState([]);
   const [election, setElection] = useState(null);
