@@ -30,14 +30,27 @@ function Vote() {
   }, []);
 
   const electionState = useMemo(() => {
-    if (!election) {
-      return { canVote: false, message: "Loading election details..." };
+    if (!election?.start_time || !election?.end_time) {
+      return { canVote: true, message: "" };
     }
 
-    return {
-      canVote: Boolean(election.can_vote),
-      message: election.status_message || "",
-    };
+    const now = new Date();
+    const start = new Date(election.start_time);
+    const end = new Date(election.end_time);
+
+    if (now < start) {
+      return { canVote: false, message: "Voting has not started yet." };
+    }
+
+    if (now >= end) {
+      return { canVote: false, message: "Voting has ended for this election." };
+    }
+
+    if (!election.is_active) {
+      return { canVote: false, message: "Voting is currently paused." };
+    }
+
+    return { canVote: true, message: "" };
   }, [election]);
 
   const handleVote = async (id) => {
