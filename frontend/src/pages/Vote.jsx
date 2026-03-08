@@ -1,23 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import API from "../api/axios";
-
-function formatDistanceFromBaseline(targetTime, serverNow, baselineClientTs) {
-  const target = new Date(targetTime).getTime();
-  const serverStart = new Date(serverNow).getTime();
-  const elapsedClientMs = Date.now() - baselineClientTs;
-  const distance = target - (serverStart + elapsedClientMs);
-
-  if (Number.isNaN(distance) || distance <= 0) {
-    return "0h 0m 0s";
-  }
-
-  const totalSeconds = Math.floor(distance / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  return `${hours}h ${minutes}m ${seconds}s`;
-}
 
 function Vote() {
   const [candidates, setCandidates] = useState([]);
@@ -26,6 +9,7 @@ function Vote() {
   const [feedback, setFeedback] = useState({ type: "", message: "" });
   const [votingFor, setVotingFor] = useState(null);
   const [hasVoted, setHasVoted] = useState(false);
+  const [votedCandidateId, setVotedCandidateId] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -48,8 +32,20 @@ function Vote() {
   }, []);
 
   const electionState = useMemo(() => {
+    if (election?.status === "ended") {
+      return { canVote: false, message: "Voting has ended for this election.", hasEnded: true };
+    }
+
+    if (election?.status === "upcoming") {
+      return { canVote: false, message: "Voting has not started yet.", hasEnded: false };
+    }
+
+    if (election?.status === "paused") {
+      return { canVote: false, message: "Voting is currently paused.", hasEnded: false };
+    }
+
     if (!election?.start_time || !election?.end_time) {
-      return { canVote: true, message: "" };
+      return { canVote: true, message: "", hasEnded: false };
     }
 
     const now = new Date();
@@ -57,18 +53,18 @@ function Vote() {
     const end = new Date(election.end_time);
 
     if (now < start) {
-      return { canVote: false, message: "Voting has not started yet." };
+      return { canVote: false, message: "Voting has not started yet.", hasEnded: false };
     }
 
     if (now >= end) {
-      return { canVote: false, message: "Voting has ended for this election." };
+      return { canVote: false, message: "Voting has ended for this election.", hasEnded: true };
     }
 
     if (!election.is_active) {
-      return { canVote: false, message: "Voting is currently paused." };
+      return { canVote: false, message: "Voting is currently paused.", hasEnded: false };
     }
 
-    return { canVote: true, message: "" };
+    return { canVote: true, message: "", hasEnded: false };
   }, [election]);
 
   const handleVote = async (id) => {
@@ -87,7 +83,8 @@ function Vote() {
         )
       );
       setHasVoted(true);
-      setFeedback({ type: "success", message: "Vote submitted successfully." });
+      setVotedCandidateId(id);
+      setFeedback({ type: "success", message: "Your vote was submitted successfully." });
     } catch (error) {
       const message = error?.response?.data?.error || "Unable to submit vote.";
       if (message.toLowerCase().includes("already voted")) {
@@ -97,6 +94,14 @@ function Vote() {
     } finally {
       setVotingFor(null);
     }
+  };
+
+  const getButtonLabel = (candidateId) => {
+    if (votingFor === candidateId) return "Submitting...";
+    if (hasVoted && votedCandidateId === candidateId) return "Vote Submitted";
+    if (hasVoted && votedCandidateId !== null) return "Locked";
+    if (hasVoted && votedCandidateId === null) return "Already Voted";
+    return "Vote";
   };
 
   return (
@@ -111,6 +116,10 @@ function Vote() {
           <h3>{election.title}</h3>
           {!electionState.canVote && electionState.message ? (
             <p className="status error">{electionState.message}</p>
+          ) : null}
+
+          {electionState.hasEnded ? (
+            <Link className="btn-link inline-link" to="/results">View Results</Link>
           ) : null}
         </div>
       ) : null}
@@ -139,7 +148,7 @@ function Vote() {
               onClick={() => handleVote(candidate.id)}
               disabled={votingFor === candidate.id || !electionState.canVote || hasVoted}
             >
-              {votingFor === candidate.id ? "Submitting..." : hasVoted ? "Vote Submitted" : "Vote"}
+              {getButtonLabel(candidate.id)}
             </button>
           </article>
         ))}

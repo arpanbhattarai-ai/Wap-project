@@ -31,6 +31,8 @@ class VotingApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['id'], election.id)
         self.assertEqual(response.data['title'], 'Student Council 2026')
+        self.assertEqual(response.data['status'], 'ongoing')
+        self.assertIn('server_time', response.data)
 
     def test_vote_requires_authentication(self):
         election = Election.objects.create(
