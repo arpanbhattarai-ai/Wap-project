@@ -9,6 +9,25 @@ from .models import Candidate, Election, Vote
 from .serializers import CandidateSerializer, ElectionSerializer, RegisterSerializer
 
 
+def _build_election_state(election):
+    """Build computed state fields consumed by frontend clients."""
+    now = timezone.now()
+
+    if not election.is_active:
+        status_value = 'paused'
+    elif now < election.start_time:
+        status_value = 'upcoming'
+    elif now >= election.end_time:
+        status_value = 'ended'
+    else:
+        status_value = 'ongoing'
+
+    return {
+        'status': status_value,
+        'server_time': now.isoformat(),
+    }
+
+
 def _get_relevant_election():
     """Return the active election if one exists, otherwise the nearest by start time."""
     active_election = Election.objects.filter(is_active=True).order_by('start_time').first()
