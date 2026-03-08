@@ -25,7 +25,9 @@ def get_election(request):
         return Response({"detail": "No election configured."}, status=status.HTTP_404_NOT_FOUND)
 
     serializer = ElectionSerializer(election)
-    return Response(serializer.data)
+    response_data = serializer.data
+    response_data.update(_build_election_state(election))
+    return Response(response_data)
 
 
 @api_view(['POST'])

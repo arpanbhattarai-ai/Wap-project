@@ -34,6 +34,7 @@ function Results() {
   const [timeLeft, setTimeLeft] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [baselineClientTs, setBaselineClientTs] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -45,6 +46,7 @@ function Results() {
 
         setElection(electionRes.data);
         setCandidates(candidatesRes.data);
+        setBaselineClientTs(Date.now());
       } catch {
         setError("Unable to load results right now.");
       } finally {
@@ -67,7 +69,7 @@ function Results() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [election]);
+  }, [election, baselineClientTs]);
 
   const winner = useMemo(() => {
     if (candidates.length === 0) return null;
@@ -92,31 +94,36 @@ function Results() {
     );
   }
 
-  if (election?.start_time && election?.end_time) {
-    const now = new Date();
-    const start = new Date(election.start_time);
-    const end = new Date(election.end_time);
+  if (election?.status === "upcoming") {
+    return (
+      <section className="container">
+        <div className="card">
+          <h2>Election has not started yet</h2>
+        </div>
+      </section>
+    );
+  }
 
-    if (now < start) {
-      return (
-        <section className="container">
-          <div className="card">
-            <h2>Election has not started yet</h2>
-          </div>
-        </section>
-      );
-    }
+  if (election?.status === "ongoing") {
+    return (
+      <section className="container">
+        <div className="card">
+          <h2>Election is ongoing</h2>
+          <p className="muted">Time Remaining: {timeLeft}</p>
+        </div>
+      </section>
+    );
+  }
 
-    if (now >= start && now < end) {
-      return (
-        <section className="container">
-          <div className="card">
-            <h2>Election is ongoing</h2>
-            <p className="muted">Time Remaining: {timeLeft}</p>
-          </div>
-        </section>
-      );
-    }
+  if (election?.status === "paused") {
+    return (
+      <section className="container">
+        <div className="card">
+          <h2>Election is currently paused</h2>
+          <p className="muted">Results are unavailable while voting is paused.</p>
+        </div>
+      </section>
+    );
   }
 
   const labels = candidates.map((candidate) => candidate.name);
