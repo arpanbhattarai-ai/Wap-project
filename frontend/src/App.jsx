@@ -7,27 +7,31 @@ import Results from "./pages/Results";
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("token");
-  return token ? children : <Navigate to="/login" />;
+  return token ? children : <Navigate to="/login" replace />;
 }
 
 function App() {
   return (
     <Router>
-      <Navbar />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route
-          path="/vote"
-          element={
-            <ProtectedRoute>
-              <Vote />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/results" element={<Results />} />
-        <Route path="*" element={<Navigate to="/login" />} />
-      </Routes>
+      <div className="app-shell">
+        <Navbar />
+        <main className="page-content">
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route
+              path="/vote"
+              element={
+                <ProtectedRoute>
+                  <Vote />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/results" element={<Results />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </main>
+      </div>
     </Router>
   );
 }

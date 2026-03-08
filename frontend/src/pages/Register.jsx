@@ -1,45 +1,79 @@
 import { useState } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import API from "../api/axios";
 
 function Register() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [status, setStatus] = useState({ type: "", message: "" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  const handleRegister = async () => {
+  const handleRegister = async (event) => {
+    event.preventDefault();
+    setStatus({ type: "", message: "" });
+
+    if (!username.trim() || !password.trim()) {
+      setStatus({ type: "error", message: "All fields are required." });
+      return;
+    }
+
     try {
-      await axios.post("http://127.0.0.1:8000/api/register/", {
+      setIsSubmitting(true);
+      await API.post("register/", {
         username,
         password,
       });
 
-      alert("Registration successful!");
-      navigate("/login");
-    } catch (error) {
-      alert("Registration failed.");
+      setStatus({ type: "success", message: "Registration successful! Redirecting..." });
+      setTimeout(() => navigate("/login"), 800);
+    } catch {
+      setStatus({ type: "error", message: "Registration failed. Try a different username." });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="container">
-      <h2>Register</h2>
+    <section className="auth-wrap">
+      <div className="card auth-card">
+        <h2>Create Account</h2>
+        <p className="muted">Register to participate in elections.</p>
 
-      <div className="card">
-        <input
-          placeholder="Username"
-          onChange={(e) => setUsername(e.target.value)}
-        />
+        <form onSubmit={handleRegister} className="form-stack">
+          <label htmlFor="username">Username</label>
+          <input
+            id="username"
+            value={username}
+            placeholder="Choose username"
+            onChange={(e) => setUsername(e.target.value)}
+          />
 
-        <input
-          type="password"
-          placeholder="Password"
-          onChange={(e) => setPassword(e.target.value)}
-        />
+          <label htmlFor="password">Password</label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            placeholder="Choose password"
+            onChange={(e) => setPassword(e.target.value)}
+          />
 
-        <button onClick={handleRegister}>Register</button>
+          {status.message ? (
+            <p className={`status ${status.type === "success" ? "success" : "error"}`}>
+              {status.message}
+            </p>
+          ) : null}
+
+          <button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Creating..." : "Register"}
+          </button>
+        </form>
+
+        <p className="muted">
+          Already have an account? <Link to="/login">Login</Link>
+        </p>
       </div>
-    </div>
+    </section>
   );
 }
 
