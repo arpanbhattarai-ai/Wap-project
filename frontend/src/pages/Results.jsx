@@ -57,6 +57,14 @@ function Results() {
         const seconds = Math.floor((distance % (1000 * 60)) / 1000);
         setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
       }
+
+      if (now < end) {
+        setTimeLeft(`Time Remaining: ${formatDistance(election.end_time)}`);
+        return;
+      }
+
+      setTimeLeft("Election Ended");
+      clearInterval(interval);
     }, 1000);
 
     return () => clearInterval(interval);

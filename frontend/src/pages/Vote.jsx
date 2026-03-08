@@ -40,6 +40,11 @@ function Vote() {
     }
   };
 
+  const now = new Date();
+  const hasElectionWindow = election?.start_time && election?.end_time;
+  const electionNotStarted = hasElectionWindow && now < new Date(election.start_time);
+  const electionEnded = hasElectionWindow && now >= new Date(election.end_time);
+
   return (
     <section className="container">
       <div className="section-header">

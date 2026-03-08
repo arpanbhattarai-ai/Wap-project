@@ -33,7 +33,16 @@ def register_user(request):
 
 @api_view(['GET'])
 def get_candidates(request):
-    candidates = Candidate.objects.all()
+    election_id = request.query_params.get('election_id')
+
+    if election_id:
+        candidates = Candidate.objects.filter(election_id=election_id)
+    else:
+        election = _get_relevant_election()
+        if not election:
+            return Response([], status=status.HTTP_200_OK)
+        candidates = Candidate.objects.filter(election=election)
+
     serializer = CandidateSerializer(candidates, many=True)
     return Response(serializer.data)
 
