@@ -14,13 +14,9 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
 
-function formatDistanceFromBaseline(endTime, serverNow, baselineClientTs) {
-  const end = new Date(endTime).getTime();
-  const serverStart = new Date(serverNow).getTime();
-  const elapsedClientMs = Date.now() - baselineClientTs;
-  const distance = end - (serverStart + elapsedClientMs);
-
-  if (Number.isNaN(distance) || distance <= 0) {
+function formatDistance(endTime) {
+  const distance = new Date(endTime).getTime() - Date.now();
+  if (distance <= 0) {
     return "Election Ended";
   }
 
@@ -62,16 +58,15 @@ function Results() {
   }, []);
 
   useEffect(() => {
-    if (!election?.end_time || !election?.server_time || baselineClientTs === null) {
+    if (!election?.end_time) {
       return;
     }
 
-    const updateTimer = () => {
-      setTimeLeft(formatDistanceFromBaseline(election.end_time, election.server_time, baselineClientTs));
-    };
+    setTimeLeft(formatDistance(election.end_time));
 
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
+    const interval = setInterval(() => {
+      setTimeLeft(formatDistance(election.end_time));
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [election, baselineClientTs]);

@@ -18,41 +18,6 @@ def _get_relevant_election():
     return Election.objects.order_by('start_time').first()
 
 
-def _build_election_state(election):
-    now = timezone.now()
-
-    if not election.is_active:
-        return {
-            'status': 'paused',
-            'can_vote': False,
-            'status_message': 'Voting is currently paused.',
-            'server_time': now.isoformat(),
-        }
-
-    if now < election.start_time:
-        return {
-            'status': 'upcoming',
-            'can_vote': False,
-            'status_message': 'Voting has not started yet.',
-            'server_time': now.isoformat(),
-        }
-
-    if now >= election.end_time:
-        return {
-            'status': 'ended',
-            'can_vote': False,
-            'status_message': 'Voting has ended for this election.',
-            'server_time': now.isoformat(),
-        }
-
-    return {
-        'status': 'ongoing',
-        'can_vote': True,
-        'status_message': '',
-        'server_time': now.isoformat(),
-    }
-
-
 @api_view(['GET'])
 def get_election(request):
     election = _get_relevant_election()
@@ -106,9 +71,15 @@ def vote(request, candidate_id):
     if not election:
         return Response({"error": "This candidate is not assigned to an election."}, status=status.HTTP_400_BAD_REQUEST)
 
-    election_state = _build_election_state(election)
-    if not election_state['can_vote']:
-        return Response({"error": election_state['status_message']}, status=status.HTTP_400_BAD_REQUEST)
+    now = timezone.now()
+    if not election.is_active:
+        return Response({"error": "Voting is not active for this election."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if now < election.start_time:
+        return Response({"error": "Voting has not started yet."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if now >= election.end_time:
+        return Response({"error": "Voting for this election has ended."}, status=status.HTTP_400_BAD_REQUEST)
 
     candidate.vote_count += 1
     candidate.save(update_fields=['vote_count'])

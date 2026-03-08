@@ -26,15 +26,12 @@ function Vote() {
   const [feedback, setFeedback] = useState({ type: "", message: "" });
   const [votingFor, setVotingFor] = useState(null);
   const [hasVoted, setHasVoted] = useState(false);
-  const [countdown, setCountdown] = useState("");
-  const [baselineClientTs, setBaselineClientTs] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const electionRes = await API.get("election/");
         setElection(electionRes.data);
-        setBaselineClientTs(Date.now());
 
         const candidatesRes = await API.get("candidates/", {
           params: { election_id: electionRes.data.id },
@@ -50,35 +47,28 @@ function Vote() {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    if (!election?.server_time || baselineClientTs === null) {
-      return;
-    }
-
-    const targetTime = election.status === "upcoming" ? election.start_time : election.end_time;
-    if (!targetTime) {
-      return;
-    }
-
-    const update = () => {
-      setCountdown(formatDistanceFromBaseline(targetTime, election.server_time, baselineClientTs));
-    };
-
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, [election, baselineClientTs]);
-
   const electionState = useMemo(() => {
-    if (!election) {
-      return { canVote: false, message: "Loading election details..." };
+    if (!election?.start_time || !election?.end_time) {
+      return { canVote: true, message: "" };
     }
 
-    return {
-      canVote: Boolean(election.can_vote),
-      message: election.status_message || "",
-      status: election.status,
-    };
+    const now = new Date();
+    const start = new Date(election.start_time);
+    const end = new Date(election.end_time);
+
+    if (now < start) {
+      return { canVote: false, message: "Voting has not started yet." };
+    }
+
+    if (now >= end) {
+      return { canVote: false, message: "Voting has ended for this election." };
+    }
+
+    if (!election.is_active) {
+      return { canVote: false, message: "Voting is currently paused." };
+    }
+
+    return { canVote: true, message: "" };
   }, [election]);
 
   const handleVote = async (id) => {
@@ -119,8 +109,6 @@ function Vote() {
       {election?.title ? (
         <div className="card">
           <h3>{election.title}</h3>
-          {electionState.status === "upcoming" ? <p className="muted">Starts in: {countdown}</p> : null}
-          {electionState.status === "ongoing" ? <p className="muted">Ends in: {countdown}</p> : null}
           {!electionState.canVote && electionState.message ? (
             <p className="status error">{electionState.message}</p>
           ) : null}
