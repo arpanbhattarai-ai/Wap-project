@@ -14,6 +14,20 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
 
+function formatDistance(endTime) {
+  const distance = new Date(endTime).getTime() - Date.now();
+  if (distance <= 0) {
+    return "Election Ended";
+  }
+
+  const totalSeconds = Math.floor(distance / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${hours}h ${minutes}m ${seconds}s`;
+}
+
 function Results() {
   const [candidates, setCandidates] = useState([]);
   const [election, setElection] = useState(null);
@@ -24,10 +38,11 @@ function Results() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [electionRes, candidatesRes] = await Promise.all([
-          API.get("election/"),
-          API.get("candidates/"),
-        ]);
+        const electionRes = await API.get("election/");
+        const candidatesRes = await API.get("candidates/", {
+          params: { election_id: electionRes.data.id },
+        });
+
         setElection(electionRes.data);
         setCandidates(candidatesRes.data);
       } catch {
@@ -41,30 +56,14 @@ function Results() {
   }, []);
 
   useEffect(() => {
-    if (!election?.end_time) return;
+    if (!election?.end_time) {
+      return;
+    }
+
+    setTimeLeft(formatDistance(election.end_time));
 
     const interval = setInterval(() => {
-      const now = new Date().getTime();
-      const end = new Date(election.end_time).getTime();
-      const distance = end - now;
-
-      if (distance <= 0) {
-        setTimeLeft("Election Ended");
-        clearInterval(interval);
-      } else {
-        const hours = Math.floor(distance / (1000 * 60 * 60));
-        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-        setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
-      }
-
-      if (now < end) {
-        setTimeLeft(`Time Remaining: ${formatDistance(election.end_time)}`);
-        return;
-      }
-
-      setTimeLeft("Election Ended");
-      clearInterval(interval);
+      setTimeLeft(formatDistance(election.end_time));
     }, 1000);
 
     return () => clearInterval(interval);
@@ -120,8 +119,8 @@ function Results() {
     }
   }
 
-  const labels = candidates.map((c) => c.name);
-  const votes = candidates.map((c) => c.vote_count);
+  const labels = candidates.map((candidate) => candidate.name);
+  const votes = candidates.map((candidate) => candidate.vote_count);
 
   const data = {
     labels,

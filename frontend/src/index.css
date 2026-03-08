@@ -160,3 +160,23 @@ button:disabled {
     align-items: flex-start;
   }
 }
+
+
+.candidate-card button {
+  width: 100%;
+}
+
+.auth-card h2 {
+  margin-bottom: 0.2rem;
+}
+
+@media (max-width: 600px) {
+  .page-content {
+    padding-top: 1rem;
+  }
+
+  .nav-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}
