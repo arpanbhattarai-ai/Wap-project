@@ -207,11 +207,3 @@ npm run preview
   - If needed, recreate `requirements.txt` in UTF-8 format and reinstall.
 
 ---
-
-## Notes for Development
-
-- CORS is currently open to all origins in development.
-- SQLite is used by default (`backend/db.sqlite3`).
-- JWT access token lifetime is set to 60 minutes.
-
-For production, update secret key management, allowed hosts, CORS, debug mode, and database settings.
